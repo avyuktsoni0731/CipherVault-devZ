@@ -11,9 +11,10 @@ from dotenv import load_dotenv
 import os
 import io
 import hashlib
-from datetime import timedelta
+from datetime import timedelta, datetime
+import json
 
-from transformers import AutoTokenizer, pipeline
+# from transformers import AutoTokenizer, pipeline
 
 from flask_cors import CORS
 
@@ -43,7 +44,7 @@ app.config.update(
 # # Load model & tokenizer once at the top of app.py
 # risk_classifier = pipeline("text-classification", model="mrm8488/bert-tiny-finetuned-sms-spam-detection")
 # tokenizer = AutoTokenizer.from_pretrained("mrm8488/bert-tiny-finetuned-sms-spam-detection")
-risk_classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+# risk_classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 
 # Google OAuth config
@@ -238,7 +239,8 @@ def upload_file():
         'name': encrypted_filename,
         'description': f"KeyHash: {key_hash}",
         'appProperties': {
-            'original_filename': original_filename
+            'original_filename': original_filename,
+            'one_time': "true" or "false"
         },
         'mimeType': 'application/octet-stream'
     }
@@ -250,6 +252,42 @@ def upload_file():
         "encryptionKey": key.decode()
     })
 
+# @app.route('/download/<file_id>', methods=['POST'])
+# def download_file(file_id):
+#     drive_service = get_drive_service()
+#     if not drive_service:
+#         return jsonify({"error": "Unauthorized"}), 401
+
+#     file = drive_service.files().get(fileId=file_id, fields='id, name, description, appProperties').execute()
+#     expected_hash = file.get('description', '').replace("KeyHash: ", "")
+#     original_filename = file.get('appProperties', {}).get('original_filename', file['name'].replace('.encr', ''))
+
+#     try:
+#         user_key = request.get_json().get("key", "").encode()
+#         user_key_hash = hashlib.sha256(user_key).hexdigest()
+
+#         if user_key_hash != expected_hash:
+#             return jsonify({"error": "Invalid key"}), 403
+
+#         request_media = drive_service.files().get_media(fileId=file_id)
+#         file_content = request_media.execute()
+
+#         cipher = Fernet(user_key)
+#         decrypted_data = cipher.decrypt(file_content)
+
+#         print(original_filename)
+#         return Response(
+#             decrypted_data,
+#             headers={
+#                 "Content-Disposition": f"attachment; filename={original_filename}",
+#                 "Content-Type": "application/octet-stream",
+#                 "Original-Filename": f"{original_filename}"
+#             }
+#         )
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 400
+
 @app.route('/download/<file_id>', methods=['POST'])
 def download_file(file_id):
     drive_service = get_drive_service()
@@ -258,7 +296,12 @@ def download_file(file_id):
 
     file = drive_service.files().get(fileId=file_id, fields='id, name, description, appProperties').execute()
     expected_hash = file.get('description', '').replace("KeyHash: ", "")
-    original_filename = file.get('appProperties', {}).get('original_filename', file['name'].replace('.encr', ''))
+    props = file.get('appProperties', {}) or {}
+    original_filename = props.get('original_filename', file['name'].replace('.encr', ''))
+
+    # ⛔ Check if already downloaded (one-time access)
+    if props.get("one_time") == "true" and props.get("expired") == "true":
+        return jsonify({"error": "This file was allowed for one-time download and has already been accessed."}), 403
 
     try:
         user_key = request.get_json().get("key", "").encode()
@@ -267,13 +310,31 @@ def download_file(file_id):
         if user_key_hash != expected_hash:
             return jsonify({"error": "Invalid key"}), 403
 
+        # ⬇️ Download and decrypt
         request_media = drive_service.files().get_media(fileId=file_id)
         file_content = request_media.execute()
-
         cipher = Fernet(user_key)
         decrypted_data = cipher.decrypt(file_content)
 
-        print(original_filename)
+        # ✅ Update access logs
+        logs = json.loads(props.get("logs", "[]"))
+        logs.append({
+            "time": datetime.now().isoformat(),
+            "ip": request.remote_addr
+        })
+        props["logs"] = json.dumps(logs)
+
+        # ✅ Mark as expired if one-time download
+        if props.get("one_time") == "true":
+            props["expired"] = "true"
+
+        # Update file metadata
+        drive_service.files().update(
+            fileId=file_id,
+            body={"appProperties": props}
+        ).execute()
+
+        # ⬇️ Return decrypted file
         return Response(
             decrypted_data,
             headers={
@@ -286,44 +347,56 @@ def download_file(file_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-@app.route("/analyze/<file_id>", methods=["POST"])
-def analyze_file(file_id):
-    drive_service = get_drive_service()
-    if not drive_service:
+
+@app.route("/logs/<file_id>", methods=["GET"])
+def get_logs(file_id):
+    drive = get_drive_service()
+    if not drive:
         return jsonify({"error": "Unauthorized"}), 401
 
-    file = drive_service.files().get(fileId=file_id, fields="name, description").execute()
-    stored_hash = file.get("description", "").replace("KeyHash: ", "")
+    file = drive.files().get(fileId=file_id, fields="appProperties").execute()
+    logs = json.loads(file.get("appProperties", {}).get("logs", "[]"))
+    return jsonify({"logs": logs})
 
-    data = request.get_json()
-    key = data.get("key", "").encode()
-    user_hash = hashlib.sha256(key).hexdigest()
-    if user_hash != stored_hash:
-        return jsonify({"error": "Invalid key"}), 403
 
-    try:
-        file_content = drive_service.files().get_media(fileId=file_id).execute()
-        decrypted_content = Fernet(key).decrypt(file_content).decode(errors="ignore")
+# @app.route("/analyze/<file_id>", methods=["POST"])
+# def analyze_file(file_id):
+#     drive_service = get_drive_service()
+#     if not drive_service:
+#         return jsonify({"error": "Unauthorized"}), 401
 
-        # ✅ NEW ZERO-SHOT CLASSIFIER USAGE
-        result = risk_classifier(
-            decrypted_content[:1000],
-            candidate_labels=["Low", "Moderate", "High"]
-        )
+#     file = drive_service.files().get(fileId=file_id, fields="name, description").execute()
+#     stored_hash = file.get("description", "").replace("KeyHash: ", "")
 
-        risk_level = result["labels"][0]
-        score = int(result["scores"][0] * 100)
-        summary = f"AI classified this as '{risk_level}' risk with confidence {score}%"
+#     data = request.get_json()
+#     key = data.get("key", "").encode()
+#     user_hash = hashlib.sha256(key).hexdigest()
+#     if user_hash != stored_hash:
+#         return jsonify({"error": "Invalid key"}), 403
 
-        return jsonify({
-            "risk_level": risk_level,
-            "score": score,
-            "summary": summary,
-        })
+#     try:
+#         file_content = drive_service.files().get_media(fileId=file_id).execute()
+#         decrypted_content = Fernet(key).decrypt(file_content).decode(errors="ignore")
 
-    except Exception as e:
-        print("🔥 Analysis error:", e)
-        return jsonify({"error": "Internal server error"}), 500
+#         # ✅ NEW ZERO-SHOT CLASSIFIER USAGE
+#         result = risk_classifier(
+#             decrypted_content[:1000],
+#             candidate_labels=["Low", "Moderate", "High"]
+#         )
+
+#         risk_level = result["labels"][0]
+#         score = int(result["scores"][0] * 100)
+#         summary = f"AI classified this as '{risk_level}' risk with confidence {score}%"
+
+#         return jsonify({
+#             "risk_level": risk_level,
+#             "score": score,
+#             "summary": summary,
+#         })
+
+#     except Exception as e:
+#         print("🔥 Analysis error:", e)
+#         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/logout')
 def logout():

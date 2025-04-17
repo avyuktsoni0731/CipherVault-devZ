@@ -14,6 +14,7 @@ import {
   User,
   Lock,
   AlertCircle,
+  Badge,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,8 +53,7 @@ import {
 } from "@/components/ui/sidebar";
 import { EncryptionKeyModal } from "./encryption-key-modal";
 import { DownloadModal } from "./download-modal";
-import { AnalyzeModal } from "./analyse-modal";
-
+import { AccessLogModal } from "./access-log-modal";
 type FileItem = {
   id: string;
   name: string;
@@ -61,6 +61,8 @@ type FileItem = {
   size: string;
   encrypted: boolean;
   date: string;
+  expired?: string;
+  one_time?: string;
 };
 
 export default function Dashboard() {
@@ -78,15 +80,13 @@ export default function Dashboard() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [originalFileName, setOriginalFileName] = useState("");
+  const [oneTime, setOneTime] = useState(false);
 
-  const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
-  const [analyzeKey, setAnalyzeKey] = useState("");
-  const [analyzeResult, setAnalyzeResult] = useState<null | {
-    risk_level: string;
-    score: number;
-    summary: string;
-  }>(null);
-  const [analyzeError, setAnalyzeError] = useState("");
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [selectedLogFileId, setSelectedLogFileId] = useState<string | null>(
+    null
+  );
 
   const [user, setUser] = useState<{
     name: string;
@@ -173,6 +173,7 @@ export default function Dashboard() {
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("one_time", oneTime ? "true" : "false");
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "http://localhost:5000/upload");
@@ -256,33 +257,17 @@ export default function Dashboard() {
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!selectedFileId || !analyzeKey) return;
-
+  const fetchLogs = async (fileId: string) => {
     try {
-      const res = await fetch(
-        `http://localhost:5000/analyze/${selectedFileId}`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ key: analyzeKey }),
-        }
-      );
-
+      const res = await fetch(`http://localhost:5000/logs/${fileId}`, {
+        credentials: "include",
+      });
       const data = await res.json();
-
-      if (!res.ok) {
-        setAnalyzeError(data.error || "Analysis failed.");
-        return;
-      }
-
-      setAnalyzeResult(data);
+      setLogs(data.logs || []);
+      setSelectedLogFileId(fileId);
+      setShowLogModal(true);
     } catch (err) {
-      console.error("Analyze error:", err);
-      setAnalyzeError("Something went wrong. Try again.");
+      console.error("Failed to load logs", err);
     }
   };
 
@@ -392,6 +377,18 @@ export default function Dashboard() {
                           </label>
                           <Input id="file" type="file" required />
                         </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="one-time"
+                            checked={oneTime}
+                            onChange={(e) => setOneTime(e.target.checked)}
+                          />
+                          <label htmlFor="one-time" className="text-sm">
+                            Allow only one-time download
+                          </label>
+                        </div>
+
                         {isUploading && (
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm">
@@ -506,7 +503,7 @@ export default function Dashboard() {
                         {formatDate(file.date)}
                       </div>
                       <div className="col-span-1 flex justify-end">
-                        <Button
+                        {/* <Button
                           variant="default"
                           size="sm"
                           className="mr-4"
@@ -521,17 +518,36 @@ export default function Dashboard() {
                           Download
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedFileId(file.id);
-                            setShowAnalyzeModal(true);
-                            setAnalyzeResult(null);
-                            setAnalyzeKey("");
-                            setAnalyzeError("");
-                          }}
+                          onClick={() => fetchLogs(file.id)}
+                          variant="secondary"
                         >
-                          Analyze
+                          View Logs
+                        </Button> */}
+                        {file.expired === "true" ? (
+                          <Badge variant="destructive" className="mr-4">
+                            Expired
+                          </Badge>
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="mr-4"
+                            onClick={() => {
+                              setSelectedFileId(file.id);
+                              setOriginalFileName(file.name);
+                              setIsDownloadModalOpen(true);
+                              setDownloadKey("");
+                              setKeyError(false);
+                            }}
+                          >
+                            Download
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => fetchLogs(file.id)}
+                          variant="secondary"
+                        >
+                          View Logs
                         </Button>
                       </div>
                     </div>
@@ -564,14 +580,10 @@ export default function Dashboard() {
         setKeyError={setKeyError}
         onDownload={handleDownload}
       />
-      <AnalyzeModal
-        open={showAnalyzeModal}
-        onOpenChange={setShowAnalyzeModal}
-        analyzeKey={analyzeKey}
-        setAnalyzeKey={setAnalyzeKey}
-        onAnalyze={handleAnalyze}
-        error={analyzeError}
-        result={analyzeResult}
+      <AccessLogModal
+        open={showLogModal}
+        onOpenChange={setShowLogModal}
+        logs={logs}
       />
     </SidebarProvider>
   );

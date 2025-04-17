@@ -268,10 +268,10 @@ export function Landing() {
   );
 }
 
-function CheckIcon(props) {
+function CheckIcon() {
   return (
     <svg
-      {...props}
+      // {...props}
       xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"
@@ -287,10 +287,10 @@ function CheckIcon(props) {
   );
 }
 
-function LockIcon(props) {
+function LockIcon() {
   return (
     <svg
-      {...props}
+      // {...props}
       xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"
