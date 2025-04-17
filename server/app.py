@@ -13,6 +13,8 @@ import io
 import hashlib
 from datetime import timedelta
 
+from transformers import AutoTokenizer, pipeline
+
 from flask_cors import CORS
 
 load_dotenv()
@@ -37,11 +39,25 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(hours=1)
 )
 
+
+# # Load model & tokenizer once at the top of app.py
+# risk_classifier = pipeline("text-classification", model="mrm8488/bert-tiny-finetuned-sms-spam-detection")
+# tokenizer = AutoTokenizer.from_pretrained("mrm8488/bert-tiny-finetuned-sms-spam-detection")
+risk_classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
+
 # Google OAuth config
 CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
 REDIRECT_URIS = os.getenv('GOOGLE_REDIRECT_URIS').split(',')
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+# SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/userinfo.profile']
+SCOPES = [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid"
+]
+
 
 @app.before_request
 def handle_options_request():
@@ -126,6 +142,19 @@ def auth_callback():
     }
     return redirect('http://localhost:3000/dashboard')
 
+def get_credentials():
+    creds_data = session.get("credentials")
+    if not creds_data:
+        return None
+
+    creds = credentials.Credentials(**creds_data)
+    if creds.expired:
+        creds.refresh(Request())
+        session["credentials"]["token"] = creds.token
+
+    return creds
+
+
 def get_drive_service():
     creds_data = session.get('credentials')
     if not creds_data:
@@ -137,6 +166,29 @@ def get_drive_service():
         session['credentials']['token'] = creds.token
 
     return build('drive', 'v3', credentials=creds)
+
+@app.route("/api/user_info", methods=["GET"])
+def user_info():
+    creds = get_credentials()
+    if not creds:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        # Use OAuth2 API to fetch user profile info
+        oauth2_service = build("oauth2", "v2", credentials=creds)
+        user_info = oauth2_service.userinfo().get().execute()
+
+        return jsonify({
+            "user": {
+                "name": user_info.get("name"),
+                "email": user_info.get("email"),
+                "picture": user_info.get("picture"),
+            }
+        })
+    except Exception as e:
+        print("User info fetch error:", e)
+        return jsonify({"error": "Failed to retrieve user info"}), 500
+
 
 @app.route("/api/files", methods=["GET"])
 def get_files():
@@ -233,6 +285,45 @@ def download_file(file_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+@app.route("/analyze/<file_id>", methods=["POST"])
+def analyze_file(file_id):
+    drive_service = get_drive_service()
+    if not drive_service:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    file = drive_service.files().get(fileId=file_id, fields="name, description").execute()
+    stored_hash = file.get("description", "").replace("KeyHash: ", "")
+
+    data = request.get_json()
+    key = data.get("key", "").encode()
+    user_hash = hashlib.sha256(key).hexdigest()
+    if user_hash != stored_hash:
+        return jsonify({"error": "Invalid key"}), 403
+
+    try:
+        file_content = drive_service.files().get_media(fileId=file_id).execute()
+        decrypted_content = Fernet(key).decrypt(file_content).decode(errors="ignore")
+
+        # ✅ NEW ZERO-SHOT CLASSIFIER USAGE
+        result = risk_classifier(
+            decrypted_content[:1000],
+            candidate_labels=["Low", "Moderate", "High"]
+        )
+
+        risk_level = result["labels"][0]
+        score = int(result["scores"][0] * 100)
+        summary = f"AI classified this as '{risk_level}' risk with confidence {score}%"
+
+        return jsonify({
+            "risk_level": risk_level,
+            "score": score,
+            "summary": summary,
+        })
+
+    except Exception as e:
+        print("🔥 Analysis error:", e)
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/logout')
 def logout():

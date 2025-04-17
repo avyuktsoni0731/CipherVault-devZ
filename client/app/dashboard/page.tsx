@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +52,7 @@ import {
 } from "@/components/ui/sidebar";
 import { EncryptionKeyModal } from "./encryption-key-modal";
 import { DownloadModal } from "./download-modal";
+import { AnalyzeModal } from "./analyse-modal";
 
 type FileItem = {
   id: string;
@@ -68,16 +70,42 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState("");
-  // const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [downloadKey, setDownloadKey] = useState("");
-  const [downloadError, setDownloadError] = useState("");
   const [keyError, setKeyError] = useState(false);
 
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [originalFileName, setOriginalFileName] = useState("");
+
+  const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
+  const [analyzeKey, setAnalyzeKey] = useState("");
+  const [analyzeResult, setAnalyzeResult] = useState<null | {
+    risk_level: string;
+    score: number;
+    summary: string;
+  }>(null);
+  const [analyzeError, setAnalyzeError] = useState("");
+
+  const [user, setUser] = useState<{
+    name: string;
+    email: string;
+    picture: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const res = await fetch("http://localhost:5000/api/user_info", {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+      }
+    };
+    fetchUser();
+  }, []);
 
   const fetchFiles = async () => {
     try {
@@ -105,6 +133,30 @@ export default function Dashboard() {
   const filteredFiles = files.filter((file) =>
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  function formatFileSize(bytes: string | number): string {
+    const size = typeof bytes === "string" ? parseInt(bytes) : bytes;
+    if (isNaN(size)) return "?";
+
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let i = 0;
+    let formattedSize = size;
+
+    while (formattedSize >= 1024 && i < units.length - 1) {
+      formattedSize /= 1024;
+      i++;
+    }
+
+    return `${formattedSize.toFixed(1)} ${units[i]}`;
+  }
+
+  function formatDate(isoString: string): string {
+    const date = new Date(isoString);
+    return date.toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,13 +212,6 @@ export default function Dashboard() {
     navigator.clipboard.writeText(encryptionKey);
   };
 
-  // const handleDownloadClick = (fileId: number) => {
-  //   setSelectedFileId(fileId);
-  //   setIsDownloadModalOpen(true);
-  //   setDownloadKey("");
-  //   setKeyError(false);
-  // };
-
   const handleDownload = async () => {
     if (!selectedFileId || !downloadKey) return;
 
@@ -211,43 +256,35 @@ export default function Dashboard() {
     }
   };
 
-  // const handleDownload = async (fileId: string, originalFilename: string) => {
-  //   try {
-  //     const res = await fetch(`http://localhost:5000/download/${fileId}`, {
-  //       method: "POST",
-  //       credentials: "include",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({ key: downloadKey }),
-  //     });
+  const handleAnalyze = async () => {
+    if (!selectedFileId || !analyzeKey) return;
 
-  //     if (!res.ok) {
-  //       const error = await res.json();
-  //       setKeyError(true);
-  //       return;
-  //     }
+    try {
+      const res = await fetch(
+        `http://localhost:5000/analyze/${selectedFileId}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ key: analyzeKey }),
+        }
+      );
 
-  //     const blob = await res.blob();
-  //     const url = window.URL.createObjectURL(blob);
-  //     const a = document.createElement("a");
+      const data = await res.json();
 
-  //     a.href = url;
-  //     a.download = originalFilename || "decrypted-file"; // 🎯 use passed-in name
-  //     document.body.appendChild(a);
-  //     a.click();
-  //     a.remove();
-  //     window.URL.revokeObjectURL(url);
+      if (!res.ok) {
+        setAnalyzeError(data.error || "Analysis failed.");
+        return;
+      }
 
-  //     setIsDownloadModalOpen(false);
-  //     setDownloadKey("");
-  //     setKeyError(false);
-  //     setSelectedFileId(null);
-  //   } catch (err) {
-  //     console.error("Download failed", err);
-  //     setKeyError(true);
-  //   }
-  // };
+      setAnalyzeResult(data);
+    } catch (err) {
+      console.error("Analyze error:", err);
+      setAnalyzeError("Something went wrong. Try again.");
+    }
+  };
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -287,16 +324,10 @@ export default function Dashboard() {
                       <span>My Files</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton>
-                      <Lock className="h-4 w-4" />
-                      <span>Encrypted</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            <SidebarGroup>
+            {/* <SidebarGroup>
               <SidebarGroupLabel>AI Features</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -308,7 +339,7 @@ export default function Dashboard() {
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
-            </SidebarGroup>
+            </SidebarGroup> */}
           </SidebarContent>
           <SidebarFooter>
             <SidebarMenu>
@@ -391,35 +422,39 @@ export default function Dashboard() {
                     </form>
                   </DialogContent>
                 </Dialog>
-                <Button variant="outline">
-                  <FolderPlus className="mr-2 h-4 w-4" />
-                  New Folder
-                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-full"
-                    >
-                      <User className="h-5 w-5" />
-                    </Button>
+                    <Avatar className="cursor-pointer">
+                      <AvatarImage
+                        src={user?.picture || ""}
+                        alt={user?.name || "User"}
+                      />
+                      <AvatarFallback>
+                        {user?.name
+                          ? user.name
+                              .split(" ")
+                              .map((word) => word[0])
+                              .join("")
+                              .toUpperCase()
+                          : "?"}
+                      </AvatarFallback>
+                    </Avatar>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="text-sm">
+                      <div className="font-medium">{user?.name}</div>
+                      <div className="text-xs text-gray-500">{user?.email}</div>
+                    </DropdownMenuLabel>
+
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                      <User className="mr-2 h-4 w-4" />
-                      <span>Profile</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
+
+                    <DropdownMenuItem
+                      onClick={() => {
+                        window.location.href = "http://localhost:5000/logout"; // or your prod URL
+                      }}
+                    >
+                      Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -453,11 +488,11 @@ export default function Dashboard() {
                         <span className="font-medium">{file.name}</span>
                       </div>
                       <div className="col-span-2 text-gray-500 text-sm">
-                        {file.size}
+                        {formatFileSize(file.size)}
                       </div>
                       <div className="col-span-2">
                         {file.encrypted ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             <Lock className="mr-1 h-3 w-3" />
                             Encrypted
                           </span>
@@ -467,13 +502,14 @@ export default function Dashboard() {
                           </span>
                         )}
                       </div>
-                      <div className="col-span-2 text-gray-500 text-sm">
-                        {file.date}
+                      <div className="col-span-2 text-gray-500 text-sm pr-24">
+                        {formatDate(file.date)}
                       </div>
                       <div className="col-span-1 flex justify-end">
                         <Button
-                          variant="secondary"
+                          variant="default"
                           size="sm"
+                          className="mr-4"
                           onClick={() => {
                             setSelectedFileId(file.id);
                             setOriginalFileName(file.name); // <– 👈 add this state too
@@ -483,6 +519,19 @@ export default function Dashboard() {
                           }}
                         >
                           Download
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedFileId(file.id);
+                            setShowAnalyzeModal(true);
+                            setAnalyzeResult(null);
+                            setAnalyzeKey("");
+                            setAnalyzeError("");
+                          }}
+                        >
+                          Analyze
                         </Button>
                       </div>
                     </div>
@@ -514,6 +563,15 @@ export default function Dashboard() {
         keyError={keyError}
         setKeyError={setKeyError}
         onDownload={handleDownload}
+      />
+      <AnalyzeModal
+        open={showAnalyzeModal}
+        onOpenChange={setShowAnalyzeModal}
+        analyzeKey={analyzeKey}
+        setAnalyzeKey={setAnalyzeKey}
+        onAnalyze={handleAnalyze}
+        error={analyzeError}
+        result={analyzeResult}
       />
     </SidebarProvider>
   );
