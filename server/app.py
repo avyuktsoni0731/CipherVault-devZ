@@ -138,72 +138,32 @@ def get_drive_service():
 
     return build('drive', 'v3', credentials=creds)
 
-@app.route('/api/files', methods=['GET'])
+@app.route("/api/files", methods=["GET"])
 def get_files():
+    # print(session)
     drive_service = get_drive_service()
     if not drive_service:
         return jsonify({"error": "Unauthorized"}), 401
 
-    print("SESSION:", session)
+    results = drive_service.files().list(
+        q="name contains '.encr'",
+        fields="files(id, name, modifiedTime, size, mimeType, appProperties)"
+    ).execute()
 
-    try:
-        results = drive_service.files().list(
-            q="name contains '.encr'",  # Filter for files with .encr extension
-            fields="files(id, name, appProperties)"
-        ).execute()
-        files = results.get('files', [])
-
-        # Log the fetched files for debugging
-        print("Fetched files:", files)
-
-        # Add original filenames to the file list
-        for file in files:
-            file['original_filename'] = file.get('appProperties', {}).get('original_filename', file['name'])
-
-        return jsonify({"files": files})
-
-    #     # Modified query to match the working version
-    #     results = drive_service.files().list(
-    #         q="name contains '.encr'",
-    #         fields="files(id, name, mimeType, modifiedTime, size, description, appProperties)",
-    #         pageSize=100
-    #     ).execute()
-
-    #     files = results.get('files', [])
-    #     print(f"Found {len(files)} files in Drive")  # Debug output
-
-    #     formatted_files = []
-    #     for file in files:
-    #         # Extract original filename or fallback to name without .encr
-    #         original_name = file.get('appProperties', {}).get('original_filename', 
-    #                         file['name'].replace('.encr', ''))
-            
-    #         # Determine file type based on mimeType
-    #         mime_type = file.get('mimeType', '')
-    #         file_type = 'document'
-    #         if 'spreadsheet' in mime_type:
-    #             file_type = 'spreadsheet'
-    #         elif 'presentation' in mime_type:
-    #             file_type = 'presentation'
-    #         elif 'pdf' in mime_type:
-    #             file_type = 'pdf'
-    #         elif 'image' in mime_type:
-    #             file_type = 'image'
-
-    #         formatted_files.append({
-    #             "id": file["id"],
-    #             "name": original_name,
-    #             "type": file_type,
-    #             "size": file.get('size', '?'),
-    #             "encrypted": True,
-    #             "date": file.get('modifiedTime', '')
-    #         })
-
-    #     return jsonify({"files": formatted_files})
-
-    except Exception as e:
-        print(f"Error fetching files: {str(e)}")  # Debug output
-        return jsonify({"error": str(e)}), 500
+    files = results.get("files", [])
+    return jsonify({
+        "files": [
+            {
+                "id": f["id"],
+                "name": f.get("appProperties", {}).get("original_filename", f["name"].replace(".encr", "")),
+                "date": f.get("modifiedTime", ""),
+                "size": f.get("size", "?"),
+                "type": f.get("mimeType", "file"),
+                "encrypted": True
+            }
+            for f in files
+        ]
+    })
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -261,13 +221,16 @@ def download_file(file_id):
         cipher = Fernet(user_key)
         decrypted_data = cipher.decrypt(file_content)
 
+        print(original_filename)
         return Response(
             decrypted_data,
             headers={
                 "Content-Disposition": f"attachment; filename={original_filename}",
-                "Content-Type": "application/octet-stream"
+                "Content-Type": "application/octet-stream",
+                "Original-Filename": f"{original_filename}"
             }
         )
+
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -278,4 +241,4 @@ def logout():
 
 if __name__ == '__main__':
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Only for local development
-    app.run(debug=True)
+    app.run(host='localhost', port=5000, debug=True)

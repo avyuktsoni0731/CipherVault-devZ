@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const handleLogin = () => {
-    window.location.href = "http://127.0.0.1:5000/auth";
+    window.location.href = "http://localhost:5000/auth";
   };
   return (
     <div className="flex min-h-screen flex-col">

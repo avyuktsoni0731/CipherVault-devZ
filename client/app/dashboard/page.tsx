@@ -52,50 +52,6 @@ import {
 import { EncryptionKeyModal } from "./encryption-key-modal";
 import { DownloadModal } from "./download-modal";
 
-// Mock data for files
-// const mockFiles = [
-//   {
-//     id: 1,
-//     name: "Project Proposal.docx",
-//     type: "document",
-//     size: "2.4 MB",
-//     encrypted: true,
-//     date: "2025-04-15",
-//   },
-//   {
-//     id: 2,
-//     name: "Financial Report.xlsx",
-//     type: "spreadsheet",
-//     size: "1.8 MB",
-//     encrypted: true,
-//     date: "2025-04-14",
-//   },
-//   {
-//     id: 3,
-//     name: "Presentation.pptx",
-//     type: "presentation",
-//     size: "5.2 MB",
-//     encrypted: true,
-//     date: "2025-04-13",
-//   },
-//   {
-//     id: 4,
-//     name: "Contract.pdf",
-//     type: "pdf",
-//     size: "3.1 MB",
-//     encrypted: true,
-//     date: "2025-04-12",
-//   },
-//   {
-//     id: 5,
-//     name: "Logo.png",
-//     type: "image",
-//     size: "0.8 MB",
-//     encrypted: false,
-//     date: "2025-04-11",
-//   },
-// ];
-
 type FileItem = {
   id: string;
   name: string;
@@ -112,38 +68,37 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState("");
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
+  // const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [downloadKey, setDownloadKey] = useState("");
+  const [downloadError, setDownloadError] = useState("");
   const [keyError, setKeyError] = useState(false);
 
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [originalFileName, setOriginalFileName] = useState("");
 
-  //   const filteredFiles = mockFiles.filter((file) =>
-  //     file.name.toLowerCase().includes(searchQuery.toLowerCase())
-  //   );
+  const fetchFiles = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/files", {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch files");
+      const data = await res.json();
+      setFiles(data.files || []);
+    } catch (err) {
+      console.error("Error loading files:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchFiles = async () => {
-      try {
-        const res = await fetch("http://127.0.0.1:5000/api/files", {
-          method: "GET",
-          credentials: "include", // This is important
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        if (!res.ok) throw new Error("Failed to fetch files");
-        const data = await res.json();
-        setFiles(data.files || []);
-      } catch (err) {
-        console.error("Error loading files:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchFiles();
   }, []);
 
@@ -151,57 +106,148 @@ export default function Dashboard() {
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleUpload = (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const fileInput = document.getElementById("file") as HTMLInputElement;
+    const file = fileInput?.files?.[0];
+
+    if (!file) return;
+
     setIsUploading(true);
+    setUploadProgress(0);
+    setEncryptionKey("");
+    setShowKeyModal(false);
 
-    // Simulate upload progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 10;
-      setUploadProgress(progress);
+    const formData = new FormData();
+    formData.append("file", file);
 
-      if (progress >= 100) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsUploading(false);
-          setUploadProgress(0);
-          setIsUploadOpen(false);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "http://localhost:5000/upload");
+    xhr.withCredentials = true;
 
-          // Generate a random key for demo purposes
-          setEncryptionKey("a8f5e7c3d9b2f1e0");
-          setShowKeyModal(true);
-        }, 500);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percent);
       }
-    }, 300);
+    };
+
+    xhr.onload = () => {
+      setIsUploading(false);
+      setUploadProgress(0);
+      setIsUploadOpen(false);
+
+      if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        setEncryptionKey(response.encryptionKey);
+        setShowKeyModal(true);
+        fetchFiles(); // refresh dashboard
+      } else {
+        console.error("Upload failed:", xhr.responseText);
+      }
+    };
+
+    xhr.onerror = () => {
+      setIsUploading(false);
+      console.error("Upload error");
+    };
+
+    xhr.send(formData);
   };
 
   const handleCopyKey = () => {
     navigator.clipboard.writeText(encryptionKey);
   };
 
-  const handleDownloadClick = (fileId: number) => {
-    setSelectedFileId(fileId);
-    setShowDownloadModal(true);
-    setDownloadKey("");
-    setKeyError(false);
-  };
+  // const handleDownloadClick = (fileId: number) => {
+  //   setSelectedFileId(fileId);
+  //   setIsDownloadModalOpen(true);
+  //   setDownloadKey("");
+  //   setKeyError(false);
+  // };
 
-  const handleDownload = () => {
-    // In a real app, this would verify the key with the backend
-    // For demo purposes, we'll simulate key verification
-    if (downloadKey === "a8f5e7c3d9b2f1e0") {
-      // Key is correct, proceed with download
-      setShowDownloadModal(false);
-      // Simulate download
-      setTimeout(() => {
-        alert("File decrypted and downloaded successfully!");
-      }, 500);
-    } else {
-      // Key is incorrect
+  const handleDownload = async () => {
+    if (!selectedFileId || !downloadKey) return;
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/download/${selectedFileId}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ key: downloadKey }),
+        }
+      );
+
+      if (!res.ok) {
+        const error = await res.json();
+        setKeyError(true);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+
+      a.href = url;
+      a.download = originalFileName; // you can make this smarter if you pass filename too
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      // Reset modal
+      setIsDownloadModalOpen(false);
+      setDownloadKey("");
+      setKeyError(false);
+      setSelectedFileId(null);
+    } catch (err) {
+      console.error("Download failed", err);
       setKeyError(true);
     }
   };
+
+  // const handleDownload = async (fileId: string, originalFilename: string) => {
+  //   try {
+  //     const res = await fetch(`http://localhost:5000/download/${fileId}`, {
+  //       method: "POST",
+  //       credentials: "include",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({ key: downloadKey }),
+  //     });
+
+  //     if (!res.ok) {
+  //       const error = await res.json();
+  //       setKeyError(true);
+  //       return;
+  //     }
+
+  //     const blob = await res.blob();
+  //     const url = window.URL.createObjectURL(blob);
+  //     const a = document.createElement("a");
+
+  //     a.href = url;
+  //     a.download = originalFilename || "decrypted-file"; // 🎯 use passed-in name
+  //     document.body.appendChild(a);
+  //     a.click();
+  //     a.remove();
+  //     window.URL.revokeObjectURL(url);
+
+  //     setIsDownloadModalOpen(false);
+  //     setDownloadKey("");
+  //     setKeyError(false);
+  //     setSelectedFileId(null);
+  //   } catch (err) {
+  //     console.error("Download failed", err);
+  //     setKeyError(true);
+  //   }
+  // };
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -227,7 +273,7 @@ export default function Dashboard() {
           <SidebarHeader>
             <div className="flex items-center gap-2 px-4 py-2">
               <Shield className="w-6 h-6 text-blue-600" />
-              <span className="text-xl font-bold">SecureVault</span>
+              <span className="text-xl font-bold">CipherVault.ai</span>
             </div>
           </SidebarHeader>
           <SidebarContent>
@@ -426,10 +472,15 @@ export default function Dashboard() {
                       </div>
                       <div className="col-span-1 flex justify-end">
                         <Button
-                          variant="ghost"
+                          variant="secondary"
                           size="sm"
-                          onClick={() => handleDownloadClick(file.id)}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => {
+                            setSelectedFileId(file.id);
+                            setOriginalFileName(file.name); // <– 👈 add this state too
+                            setIsDownloadModalOpen(true);
+                            setDownloadKey("");
+                            setKeyError(false);
+                          }}
                         >
                           Download
                         </Button>
@@ -455,10 +506,9 @@ export default function Dashboard() {
         onCopyKey={handleCopyKey}
       />
 
-      {/* Download Key Modal */}
       <DownloadModal
-        open={showDownloadModal}
-        onOpenChange={setShowDownloadModal}
+        open={isDownloadModalOpen}
+        onOpenChange={setIsDownloadModalOpen}
         downloadKey={downloadKey}
         setDownloadKey={setDownloadKey}
         keyError={keyError}
