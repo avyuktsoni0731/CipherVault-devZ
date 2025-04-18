@@ -25,7 +25,7 @@ app = Flask(__name__)
 CORS(
     app,
     supports_credentials=True,
-    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://ciphervaultai.vercel.app"],
     methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
     expose_headers=["Content-Type"]
@@ -81,7 +81,7 @@ def get_redirect_uri():
 def index():
     if 'credentials' not in session:
         return redirect(url_for('auth'))
-    return redirect('http://localhost:3000/dashboard')
+    return redirect('https://ciphervaultai.vercel.app/dashboard')
 
 @app.route('/auth')
 def auth():
@@ -141,7 +141,7 @@ def auth_callback():
         'client_secret': creds.client_secret,
         'scopes': creds.scopes
     }
-    return redirect('http://localhost:3000/dashboard')
+    return redirect('https://ciphervaultai.vercel.app/dashboard')
 
 def get_credentials():
     creds_data = session.get("credentials")
@@ -407,7 +407,8 @@ def get_logs(file_id):
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect('http://localhost:3000')  # or homepage route
+    return redirect('https://ciphervaultai.vercel.app')  # or homepage route
+    # return redirect('http://localhost:3000')  # or homepage route
 
 if __name__ == '__main__':
     # os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Only for local development
