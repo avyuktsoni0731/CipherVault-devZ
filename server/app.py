@@ -199,7 +199,7 @@ def get_files():
         return jsonify({"error": "Unauthorized"}), 401
 
     results = drive_service.files().list(
-        q="name contains '.encr'",
+        q="name contains '.encr' and trashed = false",
         fields="files(id, name, modifiedTime, size, mimeType, appProperties)"
     ).execute()
 
@@ -212,7 +212,9 @@ def get_files():
                 "date": f.get("modifiedTime", ""),
                 "size": f.get("size", "?"),
                 "type": f.get("mimeType", "file"),
-                "encrypted": True
+                "encrypted": True,
+                "one_time": f.get("appProperties", {}).get("one_time", "false"),
+                "expired": f.get("appProperties", {}).get("expired", "false"),
             }
             for f in files
         ]
@@ -235,12 +237,16 @@ def upload_file():
     encrypted_filename = file.filename + '.encr'
     original_filename = file.filename
 
+    one_time = request.form.get("one_time", "false")  # 'true' or 'false'
+
     file_metadata = {
         'name': encrypted_filename,
         'description': f"KeyHash: {key_hash}",
         'appProperties': {
             'original_filename': original_filename,
-            'one_time': "true" or "false"
+            'one_time': one_time,
+            'expired': "false",       # always false initially
+            'logs': "[]",             # empty log list
         },
         'mimeType': 'application/octet-stream'
     }

@@ -14,7 +14,6 @@ import {
   User,
   Lock,
   AlertCircle,
-  Badge,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +53,8 @@ import {
 import { EncryptionKeyModal } from "./encryption-key-modal";
 import { DownloadModal } from "./download-modal";
 import { AccessLogModal } from "./access-log-modal";
+import { Badge } from "@/components/ui/badge";
+
 type FileItem = {
   id: string;
   name: string;
@@ -480,10 +481,20 @@ export default function Dashboard() {
                       key={file.id}
                       className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50"
                     >
+                      {/* <div className="col-span-5 flex items-center gap-3">
+                        {getFileIcon(file.type)}
+                        <span className="font-medium">{file.name}</span>
+                      </div> */}
                       <div className="col-span-5 flex items-center gap-3">
                         {getFileIcon(file.type)}
                         <span className="font-medium">{file.name}</span>
+                        {file.one_time === "true" && (
+                          <span className="text-xs text-red-500">
+                            One-time download
+                          </span>
+                        )}
                       </div>
+
                       <div className="col-span-2 text-gray-500 text-sm">
                         {formatFileSize(file.size)}
                       </div>
