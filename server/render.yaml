@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ciphervault-backend
+    runtime: python
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    envVars:
+      - key: OAUTHLIB_INSECURE_TRANSPORT
+        value: "1"

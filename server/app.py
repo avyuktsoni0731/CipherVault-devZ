@@ -410,5 +410,6 @@ def logout():
     return redirect('http://localhost:3000')  # or homepage route
 
 if __name__ == '__main__':
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Only for local development
-    app.run(host='localhost', port=5000, debug=True)
+    # os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Only for local development
+    # app.run(host='localhost', port=5000, debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
