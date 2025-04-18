@@ -74,11 +74,11 @@ def check_auth():
     if 'credentials' not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-# def get_redirect_uri():
-#     return REDIRECT_URIS[0]
-
 def get_redirect_uri():
-    return "https://ciphervault-server.onrender.com/auth/callback"
+    return REDIRECT_URIS[0]
+
+# def get_redirect_uri():
+#     return "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app"
 
 @app.route('/')
 def index():
@@ -261,42 +261,6 @@ def upload_file():
         "encryptionKey": key.decode()
     })
 
-# @app.route('/download/<file_id>', methods=['POST'])
-# def download_file(file_id):
-#     drive_service = get_drive_service()
-#     if not drive_service:
-#         return jsonify({"error": "Unauthorized"}), 401
-
-#     file = drive_service.files().get(fileId=file_id, fields='id, name, description, appProperties').execute()
-#     expected_hash = file.get('description', '').replace("KeyHash: ", "")
-#     original_filename = file.get('appProperties', {}).get('original_filename', file['name'].replace('.encr', ''))
-
-#     try:
-#         user_key = request.get_json().get("key", "").encode()
-#         user_key_hash = hashlib.sha256(user_key).hexdigest()
-
-#         if user_key_hash != expected_hash:
-#             return jsonify({"error": "Invalid key"}), 403
-
-#         request_media = drive_service.files().get_media(fileId=file_id)
-#         file_content = request_media.execute()
-
-#         cipher = Fernet(user_key)
-#         decrypted_data = cipher.decrypt(file_content)
-
-#         print(original_filename)
-#         return Response(
-#             decrypted_data,
-#             headers={
-#                 "Content-Disposition": f"attachment; filename={original_filename}",
-#                 "Content-Type": "application/octet-stream",
-#                 "Original-Filename": f"{original_filename}"
-#             }
-#         )
-
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 400
-
 @app.route('/download/<file_id>', methods=['POST'])
 def download_file(file_id):
     drive_service = get_drive_service()
@@ -367,45 +331,6 @@ def get_logs(file_id):
     logs = json.loads(file.get("appProperties", {}).get("logs", "[]"))
     return jsonify({"logs": logs})
 
-
-# @app.route("/analyze/<file_id>", methods=["POST"])
-# def analyze_file(file_id):
-#     drive_service = get_drive_service()
-#     if not drive_service:
-#         return jsonify({"error": "Unauthorized"}), 401
-
-#     file = drive_service.files().get(fileId=file_id, fields="name, description").execute()
-#     stored_hash = file.get("description", "").replace("KeyHash: ", "")
-
-#     data = request.get_json()
-#     key = data.get("key", "").encode()
-#     user_hash = hashlib.sha256(key).hexdigest()
-#     if user_hash != stored_hash:
-#         return jsonify({"error": "Invalid key"}), 403
-
-#     try:
-#         file_content = drive_service.files().get_media(fileId=file_id).execute()
-#         decrypted_content = Fernet(key).decrypt(file_content).decode(errors="ignore")
-
-#         # ✅ NEW ZERO-SHOT CLASSIFIER USAGE
-#         result = risk_classifier(
-#             decrypted_content[:1000],
-#             candidate_labels=["Low", "Moderate", "High"]
-#         )
-
-#         risk_level = result["labels"][0]
-#         score = int(result["scores"][0] * 100)
-#         summary = f"AI classified this as '{risk_level}' risk with confidence {score}%"
-
-#         return jsonify({
-#             "risk_level": risk_level,
-#             "score": score,
-#             "summary": summary,
-#         })
-
-#     except Exception as e:
-#         print("🔥 Analysis error:", e)
-#         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/logout')
 def logout():

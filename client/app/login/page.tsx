@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const handleLogin = () => {
-    window.location.href = "http://localhost:5000/auth";
+    window.location.href = "https://ciphervault-server.onrender.com/auth";
+    // window.location.href = "http://localhost:5000/auth";
   };
   return (
     <div className="flex min-h-screen flex-col">
@@ -15,9 +16,9 @@ export default function LoginPage() {
           <div className="flex flex-col items-center space-y-4 text-center">
             <Link href="/" className="flex items-center gap-2">
               <Shield className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold">SecureVault</span>
+              <span className="text-2xl font-bold">CipherVault.ai</span>
             </Link>
-            <h1 className="text-3xl font-bold">Welcome to SecureVault</h1>
+            <h1 className="text-3xl font-bold">Welcome to CipherVault.ai</h1>
             <p className="text-gray-500">
               Sign in with your Google account to access your secure files
             </p>
