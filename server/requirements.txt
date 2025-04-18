@@ -45,9 +45,7 @@ safetensors==0.5.3
 setuptools==78.1.0
 sympy==1.13.1
 tokenizers==0.21.1
-torch==2.6.0
 tqdm==4.67.1
-transformers==4.51.3
 typing_extensions==4.13.2
 uritemplate==4.1.1
 urllib3==2.3.0
