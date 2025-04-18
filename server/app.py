@@ -25,7 +25,7 @@ app = Flask(__name__)
 CORS(
     app,
     supports_credentials=True,
-    origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://ciphervaultai.vercel.app"],
+    origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://ciphervaultai.vercel.app", "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app"],
     methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
     expose_headers=["Content-Type"]
@@ -34,9 +34,9 @@ CORS(
 # Session configuration
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 app.config.update(
-    SESSION_COOKIE_SECURE=False,  # Should be True in production
+    SESSION_COOKIE_SECURE=True,  # Should be True in production
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SAMESITE='None',
     PERMANENT_SESSION_LIFETIME=timedelta(hours=1)
 )
 
@@ -61,29 +61,28 @@ SCOPES = [
 
 
 @app.before_request
-def handle_options_request():
+def handle_requests():
+    # Allow CORS preflight without auth
     if request.method == "OPTIONS":
         return "", 200
 
-@app.before_request
-def check_auth():
-    # Skip auth check for these routes
-    if request.path in ['/auth', '/auth/callback', '/']:
+    # Allow auth routes
+    if request.path in ['/auth', '/auth/callback', '/logout', '/']:
         return
-    
+
+    # Block others without credentials
     if 'credentials' not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
 def get_redirect_uri():
-    return REDIRECT_URIS[0]
+    return REDIRECT_URIS[2]
 
-# def get_redirect_uri():
-#     return "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app"
 
 @app.route('/')
 def index():
     if 'credentials' not in session:
         return redirect(url_for('auth'))
+    # return redirect('http://localhost:3000/dashboard')
     return redirect('https://ciphervaultai.vercel.app/dashboard')
 
 @app.route('/auth')
@@ -144,6 +143,7 @@ def auth_callback():
         'client_secret': creds.client_secret,
         'scopes': creds.scopes
     }
+    # return redirect('http://localhost:3000/dashboard')
     return redirect('https://ciphervaultai.vercel.app/dashboard')
 
 def get_credentials():
