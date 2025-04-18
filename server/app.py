@@ -74,8 +74,11 @@ def check_auth():
     if 'credentials' not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
+# def get_redirect_uri():
+#     return REDIRECT_URIS[0]
+
 def get_redirect_uri():
-    return REDIRECT_URIS[0]
+    return "https://ciphervault-server.onrender.com/auth/callback"
 
 @app.route('/')
 def index():
