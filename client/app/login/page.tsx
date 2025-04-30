@@ -8,8 +8,8 @@ export default function LoginPage() {
   const handleLogin = () => {
     window.location.href =
       // "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/auth";
-      window.location.href = "https://ciphervault-server.onrender.com/auth";
-    // window.location.href = "http://localhost:5000/auth";
+      // window.location.href = "https://ciphervault-server.onrender.com/auth";
+      window.location.href = "http://localhost:5000/auth";
   };
   return (
     <div className="flex min-h-screen flex-col">

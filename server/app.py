@@ -33,10 +33,16 @@ CORS(
 
 # Session configuration
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
+# app.config.update(
+#     SESSION_COOKIE_SECURE=True,  # Should be True in production
+#     SESSION_COOKIE_HTTPONLY=True,
+#     SESSION_COOKIE_SAMESITE='None',
+#     PERMANENT_SESSION_LIFETIME=timedelta(hours=1)
+# )
 app.config.update(
-    SESSION_COOKIE_SECURE=True,  # Should be True in production
+    SESSION_COOKIE_SECURE=False,  # Should be True in production
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='None',
+    SESSION_COOKIE_SAMESITE='Lax',
     PERMANENT_SESSION_LIFETIME=timedelta(hours=1)
 )
 
@@ -75,15 +81,15 @@ def handle_requests():
         return jsonify({"error": "Unauthorized"}), 401
 
 def get_redirect_uri():
-    return REDIRECT_URIS[2]
+    return REDIRECT_URIS[1]
 
 
 @app.route('/')
 def index():
     if 'credentials' not in session:
         return redirect(url_for('auth'))
-    # return redirect('http://localhost:3000/dashboard')
-    return redirect('https://ciphervaultai.vercel.app/dashboard')
+    return redirect('http://localhost:3000/dashboard')
+    # return redirect('https://ciphervaultai.vercel.app/dashboard')
 
 @app.route('/auth')
 def auth():
@@ -143,8 +149,8 @@ def auth_callback():
         'client_secret': creds.client_secret,
         'scopes': creds.scopes
     }
-    # return redirect('http://localhost:3000/dashboard')
-    return redirect('https://ciphervaultai.vercel.app/dashboard')
+    return redirect('http://localhost:3000/dashboard')
+    # return redirect('https://ciphervaultai.vercel.app/dashboard')
 
 def get_credentials():
     creds_data = session.get("credentials")
@@ -335,10 +341,10 @@ def get_logs(file_id):
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect('https://ciphervaultai.vercel.app')  # or homepage route
-    # return redirect('http://localhost:3000')  # or homepage route
+    # return redirect('https://ciphervaultai.vercel.app')  # or homepage route
+    return redirect('http://localhost:3000')  # or homepage route
 
 if __name__ == '__main__':
-    # os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Only for local development
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # Only for local development
     # app.run(host='localhost', port=5000, debug=True)
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

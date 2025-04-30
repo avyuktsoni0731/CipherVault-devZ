@@ -97,14 +97,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const res = await fetch(
-        // "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/api/user_info",
-        "https://ciphervault-server.onrender.com/api/user_info",
-        {
-          // const res = await fetch("http://localhost:5000/api/user_info", {
-          credentials: "include",
-        }
-      );
+      // const res = await fetch(
+      //   // "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/api/user_info",
+      //   "https://ciphervault-server.onrender.com/api/user_info",
+      //   {
+      const res = await fetch("http://localhost:5000/api/user_info", {
+        credentials: "include",
+      });
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
@@ -115,18 +114,17 @@ export default function Dashboard() {
 
   const fetchFiles = async () => {
     try {
-      const res = await fetch(
-        // "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/api/files",
-        "https://ciphervault-server.onrender.com/api/files",
-        {
-          // const res = await fetch("http://localhost:5000/api/files", {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      // const res = await fetch(
+      //   // "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/api/files",
+      //   "https://ciphervault-server.onrender.com/api/files",
+      //   {
+      const res = await fetch("http://localhost:5000/api/files", {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       if (!res.ok) throw new Error("Failed to fetch files");
       const data = await res.json();
       setFiles(data.files || []);
@@ -191,8 +189,8 @@ export default function Dashboard() {
     //   "POST",
     //   "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/upload"
     // );
-    xhr.open("POST", "https://ciphervault-server.onrender.com/upload");
-    // xhr.open("POST", "http://localhost:5000/upload");
+    // xhr.open("POST", "https://ciphervault-server.onrender.com/upload");
+    xhr.open("POST", "http://localhost:5000/upload");
     xhr.withCredentials = true;
 
     xhr.upload.onprogress = (event) => {
@@ -235,8 +233,8 @@ export default function Dashboard() {
     try {
       const res = await fetch(
         // `https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/download/${selectedFileId}`,
-        `https://ciphervault-server.onrender.com/download/${selectedFileId}`,
-        // `http://localhost:5000/download/${selectedFileId}`,
+        // `https://ciphervault-server.onrender.com/download/${selectedFileId}`,
+        `http://localhost:5000/download/${selectedFileId}`,
         {
           method: "POST",
           credentials: "include",
@@ -277,14 +275,13 @@ export default function Dashboard() {
 
   const fetchLogs = async (fileId: string) => {
     try {
-      const res = await fetch(
-        // `https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/logs/${fileId}`,
-        `https://ciphervault-server.onrender.com/logs/${fileId}`,
-        {
-          // const res = await fetch(`http://localhost:5000/logs/${fileId}`, {
-          credentials: "include",
-        }
-      );
+      // const res = await fetch(
+      //   // `https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/logs/${fileId}`,
+      //   `https://ciphervault-server.onrender.com/logs/${fileId}`,
+      //   {
+      const res = await fetch(`http://localhost:5000/logs/${fileId}`, {
+        credentials: "include",
+      });
       const data = await res.json();
       setLogs(data.logs || []);
       setSelectedLogFileId(fileId);
@@ -473,8 +470,8 @@ export default function Dashboard() {
                       onClick={() => {
                         window.location.href =
                           // "https://9612-2401-4900-a07d-f0e1-4944-b664-ec88-72ed.ngrok-free.app/logout"; // or your prod URL
-                          "https://ciphervault-server.onrender.com/logout"; // or your prod URL
-                        // window.location.href = "http://localhost:5000/logout"; // or your prod URL
+                          // "https://ciphervault-server.onrender.com/logout"; // or your prod URL
+                          window.location.href = "http://localhost:5000/logout"; // or your prod URL
                       }}
                     >
                       Logout
